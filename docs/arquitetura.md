@@ -101,3 +101,13 @@ enviado ao LLM, e antes de qualquer commit no repositório central (RF10).
 A Fase 2 integra ferramentas consolidadas (gitleaks/trufflehog) como camada
 adicional de defesa no CI do `pr-registry`, complementando (não
 substituindo) `scripts/scrub.js`.
+
+`scripts/secret-patterns.json` cobre tanto atribuições nomeadas
+(`password=`, `apiKey:`) quanto prefixos de formato conhecido por vendor
+(`sk-ant-`, `sk-proj-`, `sk_live_`/`pk_live_`, `AIza...`, `Bearer <token>`)
+— segredos embutidos em snippets sem nome de variável óbvio só são detectados
+pelos padrões de prefixo. Segredos sintéticos usados em testes devem ser
+montados por concatenação em runtime (nunca como literal contíguo no
+código-fonte), pois o push protection do próprio GitHub escaneia o texto
+bruto do diff e bloqueia pushes com padrões de segredo reconhecíveis,
+mesmo em fixtures de teste claramente falsas.
