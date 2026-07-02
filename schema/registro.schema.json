@@ -25,8 +25,8 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "description": "Versão do schema usada para gerar este registro.",
-      "const": "1.0"
+      "description": "Versão do schema usada para gerar este registro. 1.1 adiciona o campo opcional diff_truncado; 1.0 permanece válido para registros anteriores.",
+      "enum": ["1.0", "1.1"]
     },
     "pr_id": {
       "type": "string",
@@ -98,6 +98,16 @@
     "tags": {
       "type": "array",
       "items": { "type": "string" }
+    },
+    "diff_truncado": {
+      "type": "object",
+      "description": "Presente somente quando o diff enviado ao LLM foi cortado por orçamento de tokens (RNF7). Metadado do pipeline, não uma pendência para humanos.",
+      "additionalProperties": false,
+      "required": ["arquivos_omitidos", "linhas_omitidas"],
+      "properties": {
+        "arquivos_omitidos": { "type": "integer", "minimum": 0 },
+        "linhas_omitidas": { "type": "integer", "minimum": 0 }
+      }
     }
   },
   "$defs": {

@@ -101,6 +101,11 @@ function buildAcoesPorCamada(acoes) {
   return secoes.join('\n').trimEnd();
 }
 
+function buildDiffTruncadoAviso(diffTruncado) {
+  if (!diffTruncado) return '';
+  return `> ⚠️ **Diff truncado para controlar custo:** ${diffTruncado.arquivos_omitidos} arquivo(s) e ${diffTruncado.linhas_omitidas} linha(s) omitidos da análise. Este registro pode não cobrir 100% do PR.\n`;
+}
+
 function buildStatusConsolidado(registro) {
   const contagem = new Map();
   for (const acao of registro.acoes) {
@@ -127,6 +132,7 @@ function buildStatusConsolidado(registro) {
  * Gera o Markdown legível de um registro a partir do JSON — nunca editado à mão.
  */
 function generateMarkdown(registro) {
+  const aviso = buildDiffTruncadoAviso(registro.diff_truncado);
   const partes = [
     buildFrontmatter(registro),
     '',
@@ -136,6 +142,7 @@ function generateMarkdown(registro) {
       registro.requisito.titulo ? ` (${registro.requisito.titulo})` : ''
     }_`,
     '',
+    ...(aviso ? [aviso, ''] : []),
     '## Resumo Geral',
     '',
     registro.resumo_geral,

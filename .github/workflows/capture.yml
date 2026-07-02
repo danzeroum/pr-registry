@@ -1,0 +1,90 @@
+name: PR Registry — Captura no merge
+
+# Workflow reutilizável (RF1/RF11): cada repositório de origem chama este
+# workflow no seu próprio `on: pull_request: closed`, filtrando
+# `if: github.event.pull_request.merged == true`. Ver docs/onboarding.md
+# para o passo a passo de instalação num novo repositório.
+#
+# LIMITAÇÃO ASSUMIDA: PRs de fork não têm acesso aos secrets no evento
+# `pull_request`, então são pulados sem erro pelo próprio action/index.js
+# (guard de fork). Esta Action assume repositórios internos da
+# organização — ver docs/onboarding.md#prs-de-fork.
+
+on:
+  workflow_call:
+    inputs:
+      pr_registry_repo:
+        description: 'owner/pr-registry — repositório central onde os registros são commitados'
+        required: true
+        type: string
+      pr_registry_branch:
+        description: 'Branch do repositório central para commitar os registros'
+        required: false
+        type: string
+        default: 'main'
+    secrets:
+      PR_REGISTRY_APP_ID:
+        description: 'App ID do GitHub App usado para autenticação cross-repo'
+        required: true
+      PR_REGISTRY_APP_PRIVATE_KEY:
+        description: 'Chave privada do GitHub App'
+        required: true
+      ANTHROPIC_API_KEY:
+        description: 'Chave da API Anthropic — se ausente, o registro é gerado em modo degradado'
+        required: false
+
+jobs:
+  capture:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout do repositório de origem
+        uses: actions/checkout@v4
+
+      - name: Gera token de curta duração do GitHub App
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.PR_REGISTRY_APP_ID }}
+          private-key: ${{ secrets.PR_REGISTRY_APP_PRIVATE_KEY }}
+          repositories: |
+            ${{ github.event.repository.name }}
+            ${{ inputs.pr_registry_repo }}
+
+      - name: Checkout do repositório central pr-registry
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.pr_registry_repo }}
+          token: ${{ steps.app-token.outputs.token }}
+          path: .pr-registry-checkout
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Instala dependências da Action
+        working-directory: .pr-registry-checkout
+        run: npm ci
+
+      - name: Configura identidade do bot para commit
+        working-directory: .pr-registry-checkout
+        run: |
+          git config user.name "pr-registry-bot"
+          git config user.email "pr-registry-bot@users.noreply.github.com"
+
+      - name: Executa a captura e categorização
+        working-directory: .pr-registry-checkout
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_REGISTRY_REPO: ${{ inputs.pr_registry_repo }}
+          PR_REGISTRY_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_REGISTRY_CHECKOUT_DIR: ${{ github.workspace }}/.pr-registry-checkout
+          PR_REGISTRY_BRANCH: ${{ inputs.pr_registry_branch }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node action/index.js

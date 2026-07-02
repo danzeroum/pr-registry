@@ -5,13 +5,14 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "test": "node --test test/*.test.js",
+    "test": "node --test test/*.test.js test/action/*.test.js",
     "generate-md": "node scripts/generate-md.js",
     "validate": "node scripts/validate.js",
     "scrub": "node scripts/scrub.js"
   },
   "dependencies": {
     "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1"
+    "ajv-formats": "^3.0.1",
+    "js-yaml": "^4.1.0"
   }
 }

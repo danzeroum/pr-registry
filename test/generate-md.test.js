@@ -61,6 +61,18 @@ test('marca justificativa inferida no markdown', () => {
   assert.match(md, /_\(inferida do diff\)_/);
 });
 
+test('exibe aviso quando diff_truncado está presente, sem afetar registros sem o campo', () => {
+  const registro = loadExemplo('PR-101.json');
+  const semTruncamento = generateMarkdown(registro);
+  assert.doesNotMatch(semTruncamento, /Diff truncado/);
+
+  const comTruncamento = generateMarkdown({
+    ...registro,
+    diff_truncado: { arquivos_omitidos: 3, linhas_omitidas: 850 }
+  });
+  assert.match(comTruncamento, /Diff truncado para controlar custo.*3 arquivo\(s\) e 850 linha\(s\) omitidos/);
+});
+
 test('markdown gerado é idêntico ao arquivo .md commitado (derivação 100% do JSON)', () => {
   for (const nome of ['PR-101', 'PR-102', 'PR-103']) {
     const registro = loadExemplo(`${nome}.json`);

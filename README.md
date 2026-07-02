@@ -8,9 +8,13 @@ requisito de origem.
 
 Veja a visão completa de arquitetura em [`docs/arquitetura.md`](docs/arquitetura.md).
 
-> **Status:** Fase 1 (Fundação) concluída — schema, template de Markdown,
-> scripts utilitários e exemplos. GitHub Action, dashboard e hardening
-> chegam nas fases seguintes.
+> **Status:** Fase 1 (Fundação) e Fase 2 (Pipeline) concluídas — schema,
+> template de Markdown, scripts utilitários, Action reutilizável de
+> captura no merge (com modo degradado e tolerância a jobs concorrentes)
+> e exemplos. Dashboard e hardening final chegam nas fases seguintes. A
+> Fase 2 foi verificada por testes de integração com IO mockada — rodar
+> o checklist de `docs/onboarding.md` num repo sandbox real antes de
+> produção.
 
 ## Estrutura
 
@@ -24,8 +28,13 @@ pr-registry/
 │   ├── validate.js          # valida um registro contra o schema
 │   ├── scrub.js             # scrubbing de segredos
 │   └── secret-patterns.json # padrões de segredo (configurável)
-├── test/                     # testes unitários (node --test)
-└── docs/arquitetura.md
+├── action/                   # Action reutilizável de captura (Fase 2) — ver action/README.md
+├── .github/workflows/capture.yml  # workflow_call chamado pelos repos de origem
+├── pr-registry.example.yml   # exemplo de config por repositório (RF11)
+├── test/                     # testes unitários e de integração (node --test)
+└── docs/
+    ├── arquitetura.md
+    └── onboarding.md          # como instalar a Action num novo repo
 ```
 
 ## Uso

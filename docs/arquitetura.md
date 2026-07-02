@@ -14,8 +14,10 @@ dashboard.
    do Claude Code, quando existir, é apenas contexto complementar para
    justificativas.
 2. **Zero ação manual.** Captura via GitHub Action disparada no merge.
-3. **Processamento headless.** O "tradutor" roda em CI (`claude -p` ou
-   chamada direta à API Anthropic), nunca em sessão interativa.
+3. **Processamento headless.** O "tradutor" roda em CI — decidido na Fase 2:
+   chamada direta à API Anthropic via `fetch` (não `claude -p`), para não
+   depender de instalar o CLI do Claude Code em cada runner consumidor da
+   Action. Nunca roda em sessão interativa.
 4. **Rastreabilidade obrigatória PR → requisito**, com fallback explícito
    para `nao-vinculado` quando não há referência identificável.
 5. **Registro híbrido:** JSON validado por schema (fonte de verdade para
@@ -82,8 +84,43 @@ Push em pr-registry dispara rebuild do dashboard estático (RF8)
 | `scripts/validate.js` | 1 | Validação de schema + regras extras (snippet ≤ 10 linhas). |
 | `registros/` | 1 (exemplos) / 2 (produção) | Repositório central de registros. |
 | `action/` | 2 | GitHub Action reutilizável (captura → LLM → validação → commit → comentário). |
+| `.github/workflows/capture.yml` | 2 | Workflow `workflow_call` que os repos de origem invocam no merge. |
+| `docs/onboarding.md` | 2 | Passo a passo de instalação num novo repositório (RF11). |
 | `dashboard/` | 3 | Site estático (Astro) publicado via GitHub Pages. |
 | Hooks do Claude Code (opcional) | 4 | Enriquecimento do transcript como artefato de contexto. |
+
+## Decisões da Fase 2
+
+- **Autenticação cross-repo:** GitHub App dedicado (não PAT pessoal),
+  instalado no `pr-registry` e em cada repo de origem. `capture.yml` gera
+  um token de curta duração por execução via `actions/create-github-app-token`.
+  App ID e chave privada ficam como secrets de organização.
+- **Idempotência do comentário:** marcador HTML invisível
+  `<!-- pr-registry:{repo}/{pr_number} -->` no corpo do comentário
+  (`action/src/comment.js`). A Action lista os comentários do PR, procura
+  o marcador e faz `PATCH` se existir, `POST` caso contrário.
+- **Corrida de commits no `pr-registry`:** com múltiplos repositórios
+  mergeando em paralelo (RNF3), `action/src/commit.js` faz `add`+`commit`
+  uma vez e, se o `push` for rejeitado por non-fast-forward, repete
+  `fetch`+`rebase`+`push` com backoff exponencial (até 5 tentativas). Um
+  conflito real de rebase (não apenas corrida) interrompe com erro em vez
+  de tentar indefinidamente.
+- **Conteúdo do PR é dado, não instrução:** diff, commits, título,
+  descrição e transcript são de terceiros e podem conter tentativas de
+  manipular o categorizador (prompt injection). `prompts/categorizador.md`
+  instrui explicitamente a tratá-los como dados; o comentário postado no
+  PR (`action/src/comment.js`) é sempre renderizado a partir do JSON já
+  validado contra o schema — o texto livre do LLM nunca é postado
+  diretamente.
+- **Truncamento de diff como metadado, não pendência:** o corte por
+  orçamento de tokens (RNF7) é registrado no campo opcional
+  `diff_truncado` (`schema_version: "1.1"`), não em `pendencias` — é
+  informação sobre a completude do pipeline, não uma ação pendente para
+  humanos.
+- **PRs de fork:** fora de escopo nesta fase (não têm acesso a secrets no
+  evento `pull_request`). `action/index.js` detecta e pula esses PRs sem
+  falhar o workflow. Ver `docs/onboarding.md` para a alternativa
+  (`workflow_run`) caso uma organização precise cobrir forks.
 
 ## Modo degradado
 

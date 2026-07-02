@@ -70,6 +70,28 @@ test('rejeita registro sem campos obrigatórios', () => {
   assert.ok(errors.length > 0);
 });
 
+test('aceita diff_truncado opcional com schema_version 1.1', () => {
+  const registro = loadExemplo('PR-101.json');
+  registro.schema_version = '1.1';
+  registro.diff_truncado = { arquivos_omitidos: 2, linhas_omitidas: 400 };
+  const { valid, errors } = validateRegistro(registro);
+  assert.equal(valid, true, errors.join('\n'));
+});
+
+test('rejeita diff_truncado incompleto (faltando linhas_omitidas)', () => {
+  const registro = loadExemplo('PR-101.json');
+  registro.diff_truncado = { arquivos_omitidos: 2 };
+  const { valid } = validateRegistro(registro);
+  assert.equal(valid, false);
+});
+
+test('rejeita schema_version fora do enum 1.0/1.1', () => {
+  const registro = loadExemplo('PR-101.json');
+  registro.schema_version = '2.0';
+  const { valid } = validateRegistro(registro);
+  assert.equal(valid, false);
+});
+
 test('rejeita modo fora do enum completo/degradado', () => {
   const registro = loadExemplo('PR-101.json');
   registro.modo = 'parcial';
