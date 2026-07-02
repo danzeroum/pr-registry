@@ -1,6 +1,6 @@
 'use strict';
 
-const { generateMarkdown } = require('../../scripts/generate-md');
+const { generateMarkdown } = require('../../core/generate-md');
 
 function marker(repo, prNumber) {
   return `<!-- pr-registry:${repo}/${prNumber} -->`;

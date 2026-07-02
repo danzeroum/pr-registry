@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { categorizar, parseJson } = require('../../action/src/categorize');
+const { categorizar, parseJson } = require('../../core/categorize');
 
 const EXEMPLO_VALIDO = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', '..', 'registros', '2026', 'exemplo-repo', 'PR-101.json'), 'utf8')

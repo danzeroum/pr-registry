@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { truncateDiff } = require('../../action/src/diff');
+const { truncateDiff } = require('../../core/diff');
 
 function makePatch(lines) {
   return Array.from({ length: lines }, (_, i) => `+linha ${i}`).join('\n');

@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { loadConfig } = require('../../action/src/config');
+const { loadConfig } = require('../../core/config');
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'pr-registry-config-'));

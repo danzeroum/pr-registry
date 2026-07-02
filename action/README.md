@@ -1,23 +1,29 @@
-# action/ — Pipeline de captura (Fase 2)
+# action/ — Pipeline de captura (Fase 2 — modo de implantação alternativo)
 
 Implementa RF1–RF7: coleta o PR mergeado, categoriza via Claude headless,
 valida contra o schema com retry, commita no repositório central com
 tolerância a corrida entre jobs concorrentes, e comenta no PR de forma
 idempotente.
 
+> Desde a Fase 3, o modo principal do produto é `service/` (polling
+> multi-projeto, sem instalar nada no repositório de origem). Este diretório
+> continua funcionando como modo alternativo — útil para quem prefere não
+> operar um serviço próprio. O motor foi extraído para `core/`; este
+> diretório é hoje um adaptador fino sobre ele.
+
 ## Estrutura
 
 | Módulo | Responsabilidade |
 |---|---|
-| `src/requisito.js` | Extração de rastreabilidade (título → branch → descrição → não-vinculado). |
-| `src/diff.js` | Truncamento do diff por orçamento de linhas, excluindo lockfiles/build output. |
-| `src/config.js` | Carrega `pr-registry.yml` do repo de origem (RF11). |
-| `src/llm.js` | Chamada headless à API Anthropic. |
-| `src/categorize.js` | Monta o prompt, chama o LLM, valida e faz retry com feedback (máx. 2 tentativas — RF4). |
-| `src/commit.js` | `git push` com fetch+rebase+retry e backoff para tolerar múltiplos jobs concorrentes escrevendo no `pr-registry`. |
-| `src/comment.js` | Comentário no PR renderizado exclusivamente do JSON validado, idempotente via marcador HTML. |
-| `src/degraded.js` | Registro em modo degradado + issue de triagem quando a categorização não é possível. |
-| `src/github.js` | Cliente REST mínimo do GitHub (fetch injetável). |
+| `../core/requisito.js` | Extração de rastreabilidade (título → branch → descrição → não-vinculado). |
+| `../core/diff.js` | Truncamento do diff por orçamento de linhas, excluindo lockfiles/build output. |
+| `../core/config.js` | Carrega `pr-registry.yml` do repo de origem (RF11). |
+| `../core/llm.js` | Chamada headless à API Anthropic. |
+| `../core/categorize.js` | Monta o prompt, chama o LLM, valida e faz retry com feedback (máx. 2 tentativas — RF4). |
+| `../core/degraded.js` | Registro em modo degradado + issue de triagem quando a categorização não é possível. |
+| `../core/github-client.js` | Cliente REST mínimo do GitHub (fetch e token injetáveis — nenhum/PAT/App). |
+| `src/commit.js` | `git push` com fetch+rebase+retry e backoff para tolerar múltiplos jobs concorrentes escrevendo no `pr-registry`. Específico do modo Action (não usado pelo serviço). |
+| `src/comment.js` | Comentário no PR renderizado exclusivamente do JSON validado, idempotente via marcador HTML. Reusado opcionalmente pelo serviço. |
 | `index.js` | Orquestra o pipeline; entrypoint executado pelo workflow reutilizável. |
 
 ## Como rodar os testes

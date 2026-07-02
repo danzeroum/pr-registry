@@ -4,8 +4,11 @@
   "description": "Sistema automatizado de registro e documentação de desenvolvimento (PR Registry)",
   "private": true,
   "type": "commonjs",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
-    "test": "node --test test/*.test.js test/action/*.test.js",
+    "test": "node --test test/*.test.js test/action/*.test.js test/core/*.test.js test/service/*.test.js",
     "generate-md": "node scripts/generate-md.js",
     "validate": "node scripts/validate.js",
     "scrub": "node scripts/scrub.js"

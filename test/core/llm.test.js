@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { callClaude } = require('../../action/src/llm');
+const { callClaude } = require('../../core/llm');
 
 test('monta a requisição corretamente e extrai o texto da resposta', async () => {
   let capturedUrl;

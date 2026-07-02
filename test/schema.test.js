@@ -85,11 +85,35 @@ test('rejeita diff_truncado incompleto (faltando linhas_omitidas)', () => {
   assert.equal(valid, false);
 });
 
-test('rejeita schema_version fora do enum 1.0/1.1', () => {
+test('rejeita schema_version fora do enum 1.0/1.1/1.2', () => {
   const registro = loadExemplo('PR-101.json');
   registro.schema_version = '2.0';
   const { valid } = validateRegistro(registro);
   assert.equal(valid, false);
+});
+
+test('aceita origem opcional (evento|backfill) com schema_version 1.2', () => {
+  const registro = loadExemplo('PR-101.json');
+  registro.schema_version = '1.2';
+  registro.origem = 'backfill';
+  const { valid, errors } = validateRegistro(registro);
+  assert.equal(valid, true, errors.join('\n'));
+});
+
+test('rejeita origem fora do enum evento/backfill', () => {
+  const registro = loadExemplo('PR-101.json');
+  registro.schema_version = '1.2';
+  registro.origem = 'manual';
+  const { valid } = validateRegistro(registro);
+  assert.equal(valid, false);
+});
+
+test('registros 1.0/1.1 sem o campo origem continuam válidos (aditivo)', () => {
+  const registro = loadExemplo('PR-101.json');
+  assert.equal(registro.schema_version, '1.0');
+  assert.ok(!('origem' in registro));
+  const { valid, errors } = validateRegistro(registro);
+  assert.equal(valid, true, errors.join('\n'));
 });
 
 test('rejeita modo fora do enum completo/degradado', () => {

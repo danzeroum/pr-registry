@@ -5,11 +5,22 @@
  * da API está ausente, a chamada ao LLM falha, ou a saída do LLM não passa
  * na validação de schema após os retries de categorize.js. O pipeline não
  * bloqueia o merge — grava o que for possível automaticamente e sinaliza a
- * pendência para triagem manual.
+ * pendência para triagem manual. Reusado pela Action (Fase 2) e pelo
+ * poller do serviço (Fase 3) — puramente funcional, sem I/O.
  */
-function buildRegistroDegradado({ prId, repo, tituloPr, autorDev, dataMerge, requisito, geradoPorIa, motivo }) {
+function buildRegistroDegradado({
+  prId,
+  repo,
+  tituloPr,
+  autorDev,
+  dataMerge,
+  requisito,
+  geradoPorIa,
+  motivo,
+  origem
+}) {
   return {
-    schema_version: '1.1',
+    schema_version: '1.2',
     pr_id: prId,
     repo,
     titulo_pr: tituloPr,
@@ -23,7 +34,8 @@ function buildRegistroDegradado({ prId, repo, tituloPr, autorDev, dataMerge, req
     resumo_geral: `Registro em modo degradado: ${motivo}`,
     resumo_gestor: 'Não foi possível gerar o resumo automático deste PR. Uma triagem manual foi solicitada.',
     pendencias: [`Modo degradado: ${motivo}`, 'Requer triagem manual — ver issue de triagem vinculada.'],
-    tags: ['degradado']
+    tags: ['degradado'],
+    ...(origem ? { origem } : {})
   };
 }
 

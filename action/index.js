@@ -3,16 +3,16 @@
 const fs = require('fs');
 const path = require('path');
 
-const { extrairRequisito } = require('./src/requisito');
-const { truncateDiff } = require('./src/diff');
-const { loadConfig } = require('./src/config');
-const { categorizar } = require('./src/categorize');
+const { extrairRequisito } = require('../core/requisito');
+const { truncateDiff } = require('../core/diff');
+const { loadConfig } = require('../core/config');
+const { categorizar } = require('../core/categorize');
+const { generateMarkdown } = require('../core/generate-md');
+const { scrubObject } = require('../core/scrub');
+const { createGithubClient } = require('../core/github-client');
 const { commitWithRetry } = require('./src/commit');
 const { upsertComment } = require('./src/comment');
-const { buildRegistroDegradado, buildTriageIssueBody, buildTriageIssueTitle } = require('./src/degraded');
-const { createGithubClient } = require('./src/github');
-const { generateMarkdown } = require('../scripts/generate-md');
-const { scrubObject } = require('../scripts/scrub');
+const { buildRegistroDegradado, buildTriageIssueBody, buildTriageIssueTitle } = require('../core/degraded');
 
 /**
  * Orquestra o pipeline completo de captura (RF1-RF7) para um único PR

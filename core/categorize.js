@@ -3,9 +3,9 @@
 const fs = require('fs');
 const path = require('path');
 const { callClaude } = require('./llm');
-const { validateRegistro } = require('../../scripts/validate');
+const { validateRegistro } = require('./validate');
 
-const PROMPT_PATH = path.join(__dirname, '..', '..', 'prompts', 'categorizador.md');
+const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'categorizador.md');
 
 function extractSystemPrompt(promptMarkdown = fs.readFileSync(PROMPT_PATH, 'utf8')) {
   const match = promptMarkdown.match(/## System Prompt\s*```\s*([\s\S]*?)```/);

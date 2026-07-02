@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { extrairRequisito } = require('../../action/src/requisito');
+const { extrairRequisito } = require('../../core/requisito');
 
 test('extrai requisito #123 do título com prioridade sobre branch/descrição', () => {
   const r = extrairRequisito({

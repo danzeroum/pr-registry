@@ -2,8 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { validateRegistro } = require('../../scripts/validate');
-const { buildRegistroDegradado, buildTriageIssueBody, buildTriageIssueTitle } = require('../../action/src/degraded');
+const { validateRegistro } = require('../../core/validate');
+const { buildRegistroDegradado, buildTriageIssueBody, buildTriageIssueTitle } = require('../../core/degraded');
 
 test('registro degradado é válido contra o schema', () => {
   const registro = buildRegistroDegradado({
@@ -23,7 +23,7 @@ test('registro degradado é válido contra o schema', () => {
   assert.ok(registro.pendencias.some((p) => p.includes('Modo degradado')));
 });
 
-test('registro degradado sempre tem acoes vazio e schema_version 1.1', () => {
+test('registro degradado sempre tem acoes vazio e schema_version 1.2', () => {
   const registro = buildRegistroDegradado({
     prId: 'PR-501',
     repo: 'exemplo-repo',
@@ -34,7 +34,23 @@ test('registro degradado sempre tem acoes vazio e schema_version 1.1', () => {
     motivo: 'falha de validação de schema após retries'
   });
   assert.deepEqual(registro.acoes, []);
-  assert.equal(registro.schema_version, '1.1');
+  assert.equal(registro.schema_version, '1.2');
+});
+
+test('aceita origem opcional (usado pelo poller do serviço)', () => {
+  const registro = buildRegistroDegradado({
+    prId: 'PR-502',
+    repo: 'exemplo-repo',
+    tituloPr: 'Feature Y',
+    autorDev: 'alguem',
+    dataMerge: '2026-07-02T10:00:00Z',
+    requisito: { id: 'nao-vinculado', fonte: 'nao_vinculado', titulo: '' },
+    motivo: 'ANTHROPIC_API_KEY ausente',
+    origem: 'backfill'
+  });
+  assert.equal(registro.origem, 'backfill');
+  const { valid, errors } = validateRegistro(registro);
+  assert.equal(valid, true, errors.join('\n'));
 });
 
 test('issue de triagem inclui pr_id, repo e motivo', () => {

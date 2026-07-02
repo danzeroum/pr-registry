@@ -9,68 +9,79 @@ dashboard.
 
 ## Princípios (não alterar sem decisão explícita)
 
-1. **Fonte de verdade = diff mergeado.** O registro é gerado no evento de
-   merge, a partir do diff final + commits + descrição do PR. O transcript
-   do Claude Code, quando existir, é apenas contexto complementar para
-   justificativas.
-2. **Zero ação manual.** Captura via GitHub Action disparada no merge.
-3. **Processamento headless.** O "tradutor" roda em CI — decidido na Fase 2:
-   chamada direta à API Anthropic via `fetch` (não `claude -p`), para não
-   depender de instalar o CLI do Claude Code em cada runner consumidor da
-   Action. Nunca roda em sessão interativa.
+1. **Fonte de verdade = diff mergeado.** O registro é gerado a partir do
+   diff final + commits + descrição do PR. O transcript do Claude Code,
+   quando existir, é apenas contexto complementar para justificativas.
+2. **Zero ação manual por repositório.** Cadastrar um projeto é o único
+   passo — nenhuma Action, secret ou workflow precisa ser instalado no
+   repositório de origem (decisão da Fase 3, ver abaixo).
+3. **Processamento headless.** O "tradutor" roda fora de sessão interativa:
+   chamada direta à API Anthropic via `fetch` (não `claude -p`).
 4. **Rastreabilidade obrigatória PR → requisito**, com fallback explícito
    para `nao-vinculado` quando não há referência identificável.
 5. **Registro híbrido:** JSON validado por schema (fonte de verdade para
    automação) + Markdown gerado a partir do JSON (leitura humana).
-6. **O registro vive onde o trabalho acontece:** commitado no repositório
-   central `pr-registry` e comentado no próprio PR.
-7. **Idempotência:** chave `{repo}/{pr_number}` — reruns atualizam, nunca
-   duplicam.
-8. **Status por requisito é agregado**, não armazenado diretamente — calculado
-   a partir dos PRs vinculados a cada requisito.
+6. **Idempotência:** chave `{repo}/{pr_number}` (`UNIQUE(repo, pr_id)` no
+   banco) — reprocessamento nunca duplica.
+7. **Status por requisito é agregado**, não armazenado diretamente —
+   calculado a partir dos PRs vinculados a cada requisito.
+8. **Credencial sempre injetável.** Sem token, PAT ou GitHub App são o
+   mesmo código com configuração diferente — nunca uma bifurcação de
+   lógica (ver `core/github-client.js`, `service/github-token.js`).
 
-## Fluxo de ponta a ponta
+## Mudança de direção — Fase 3: plataforma apartada
+
+As Fases 1-2 entregaram uma GitHub Action instalada por repositório
+(captura no evento de merge, push para o `pr-registry`). Na Fase 3 o
+produto pivotou para um **serviço independente que centraliza N projetos
+por polling**, em vez de uma Action instalada repo a repo. Motivo: em
+escala (dezenas de repositórios), o atrito de instalar e manter Action +
+secrets em cada um mataria a adoção; no modelo de polling, adicionar um
+projeto é só um cadastro no serviço, sem tocar no repositório alvo — e
+como efeito colateral, a limitação de PRs de fork da Fase 2 (secrets não
+chegam a workflows disparados por fork) deixa de existir, porque o serviço
+autentica uma única vez com a própria credencial, não depende do contexto
+de execução do repositório de origem.
+
+**Nada da Fase 1-2 foi descartado.** O motor (scrubbing → extração de
+requisito → truncamento de diff → categorização com retry → validação →
+geração de Markdown) foi extraído para `core/`, agnóstico de onde roda.
+`action/` virou um adaptador fino sobre `core/` e continua funcionando como
+modo de implantação alternativo para quem não quiser operar um serviço.
+`service/` é o segundo adaptador, com sua própria lógica de coleta
+(polling em vez de evento) e armazenamento (SQLite em vez de commit Git).
+
+## Fluxo de ponta a ponta (Fase 3 — modelo de polling)
 
 ```
-PR mergeado (pull_request: closed, merged == true)
+Agendador (a cada N minutos, por projeto cadastrado)
         │
         ▼
-GitHub Action reutilizável (RF1)
-  ├─ coleta diff final, arquivos, commits, título/descrição/labels,
-  │  autor, branch, datas, transcript opcional (artefato)
-  ├─ scrubbing de segredos (scripts/scrub.js) sobre tudo que será
-  │  enviado ao LLM e sobre tudo que será commitado
+service/poller.js
+  ├─ busca PRs fechados desde (cursor - sobreposição), paginado
+  │  (core/github-client.js — token injetável: nenhum/PAT/App)
+  ├─ filtra merged_at > janela; já existentes no banco (UNIQUE(repo,pr_id))
+  │  são pulados sem re-chamar o LLM
   ▼
-Chamada headless ao Claude (RF2)
-  com prompts/categorizador.md como system prompt
+service/processar-pr.js (RF2-RF5, mesma lógica de core/ usada pela Action)
+  ├─ extração de requisito, truncamento de diff, scrubbing
+  ├─ categorização headless com retry de validação de schema (RF4)
+  └─ sem API key ou após falha → registro em modo "degradado" (RF4/RNF6)
         │
         ▼
-Validação contra schema/registro.schema.json (RF4)
-  ├─ válido → modo "completo"
-  └─ inválido → retry com feedback do erro (máx. 2x)
-       └─ ainda inválido → modo "degradado" (diff bruto) +
-          issue de triagem no repositório central
+service/db.js — inserirRegistroEAvancarCursor (transação única)
+  ├─ INSERT OR IGNORE do registro (idempotente por UNIQUE(repo, pr_id))
+  └─ cursor avança para o MAIOR merged_at processado nesta rodada
+     (nunca para "agora" — evita perder PRs mergeados durante o poll)
+        │
+        ├─▶ (opcional, por projeto) espelho Git + comentário no PR,
+        │    reusando action/src/{commit,comment}.js
         │
         ▼
-Extração de rastreabilidade (RF5): título → branch → descrição →
-  "nao-vinculado"
+execucoes_poller registra prs_processados, erros, duracao_ms (evidência do RNF1)
         │
         ▼
-Geração do Markdown a partir do JSON (scripts/generate-md.js) (RF6)
-        │
-        ├─▶ Commit em registros/{ano}/{repo}/PR-{n}.json + .md
-        │    (repositório central pr-registry, idempotente por chave
-        │    {repo}/{pr_number})
-        │
-        └─▶ Comentário no PR mergeado, atualizado em re-runs (RF7)
-        │
-        ▼
-Push em pr-registry dispara rebuild do dashboard estático (RF8)
-  ├─ filtros por repo/PR/camada/tipo/status/período/requisito
-  ├─ visão de detalhe do PR
-  ├─ visão agregada por requisito (status calculado)
-  ├─ heatmap de volume por camada
-  └─ lista de pendências de rastreabilidade
+Dashboard (Fase 4) consulta o banco — visões Desenvolvedor/Gestor/Analista de Negócio
 ```
 
 ## Componentes (fase em que são construídos)
@@ -79,14 +90,18 @@ Push em pr-registry dispara rebuild do dashboard estático (RF8)
 |---|---|---|
 | `schema/registro.schema.json` | 1 | Fonte de verdade estrutural de um registro. |
 | `prompts/categorizador.md` | 1 | System prompt versionado do "tradutor". |
-| `scripts/scrub.js` | 1 | Scrubbing de segredos, reutilizado por Action e CI de segurança. |
-| `scripts/generate-md.js` | 1 | JSON → Markdown, nunca editado à mão. |
-| `scripts/validate.js` | 1 | Validação de schema + regras extras (snippet ≤ 10 linhas). |
-| `registros/` | 1 (exemplos) / 2 (produção) | Repositório central de registros. |
-| `action/` | 2 | GitHub Action reutilizável (captura → LLM → validação → commit → comentário). |
-| `.github/workflows/capture.yml` | 2 | Workflow `workflow_call` que os repos de origem invocam no merge. |
-| `docs/onboarding.md` | 2 | Passo a passo de instalação num novo repositório (RF11). |
-| `dashboard/` | 3 | Site estático (Astro) publicado via GitHub Pages. |
+| `core/scrub.js` | 1 (Fase 3: extraído para `core/`) | Scrubbing de segredos, reutilizado por Action, serviço e CI de segurança. |
+| `core/generate-md.js` | 1 (idem) | JSON → Markdown, nunca editado à mão. |
+| `core/validate.js` | 1 (idem) | Validação de schema + regras extras (snippet ≤ 10 linhas). |
+| `core/requisito.js`, `core/diff.js`, `core/config.js`, `core/llm.js`, `core/categorize.js`, `core/degraded.js` | 2 (extraídos para `core/` na Fase 3) | Motor de captura, agnóstico de Action ou serviço. |
+| `core/github-client.js` | 2 (promovido a `core/` na Fase 3) | Cliente REST mínimo, token injetável (nenhum/PAT/App) — usado por Action e poller. |
+| `registros/` | 1 (exemplos) / 2 (produção via Action) | Espelho Git opcional dos registros (reusa `action/src/commit.js`). |
+| `action/` | 2 | GitHub Action reutilizável — modo de implantação alternativo (captura → LLM → validação → commit → comentário). |
+| `.github/workflows/capture.yml` | 2 | Workflow `workflow_call` que os repos de origem invocam no merge (só para quem usa o modo Action). |
+| `service/db.js`, `poller.js`, `processar-pr.js`, `reprocessar-degradados.js`, `github-token.js`, `smoke-publico.js` | 3 | Serviço de polling multi-projeto — ver `service/README.md`. |
+| `docs/onboarding.md` | 2 | Passo a passo de instalação no modo Action (RF11). |
+| `docs/validacao-viva.md` | 3 | Checklist de validação com credenciais reais — débito registrado, bloqueante para produção. |
+| `dashboard/` | 4 | API de consulta + site com três visões por persona (Dev/Gestor/Analista de Negócio). |
 | Hooks do Claude Code (opcional) | 4 | Enriquecimento do transcript como artefato de contexto. |
 
 ## Decisões da Fase 2
@@ -117,10 +132,54 @@ Push em pr-registry dispara rebuild do dashboard estático (RF8)
   `diff_truncado` (`schema_version: "1.1"`), não em `pendencias` — é
   informação sobre a completude do pipeline, não uma ação pendente para
   humanos.
-- **PRs de fork:** fora de escopo nesta fase (não têm acesso a secrets no
-  evento `pull_request`). `action/index.js` detecta e pula esses PRs sem
-  falhar o workflow. Ver `docs/onboarding.md` para a alternativa
-  (`workflow_run`) caso uma organização precise cobrir forks.
+- **PRs de fork:** fora de escopo no modo Action (não têm acesso a secrets
+  no evento `pull_request`). `action/index.js` detecta e pula esses PRs sem
+  falhar o workflow. Essa limitação **não existe** no modo serviço (Fase
+  3) — o poller autentica com a própria credencial, não depende do
+  contexto de execução do repositório de origem.
+
+## Decisões da Fase 3
+
+- **Cursor por projeto, não relógio de parede.** `service/poller.js`
+  avança o cursor para o **maior `merged_at` efetivamente processado**
+  nesta rodada, nunca para o horário da execução. Avançar para "agora"
+  perderia PRs mergeados durante o próprio poll (a listagem já foi buscada
+  antes do merge acontecer). Cada poll também consulta com uma
+  **sobreposição** para trás (alguns minutos antes do cursor) — PRs
+  reapresentados nessa janela são idempotentes graças ao
+  `UNIQUE(repo, pr_id)`, então a sobreposição é grátis em termos de
+  correção, só custa uma consulta a mais. Ver `test/service/poller.test.js`
+  para o cenário completo e seu contraponto (sem sobreposição, o PR se
+  perde).
+- **Paginação limitada por `updated_at`, não por `merged_at`.** A API do
+  GitHub só ordena a listagem por `updated_at`. O poller para de paginar
+  quando encontra um PR com `updated_at` anterior à janela — como
+  `merged_at <= updated_at` sempre, isso é uma condição de parada segura
+  (não existe PR mais além na página com `merged_at` dentro da janela que
+  ainda não tenha sido visto).
+- **Registro + cursor na mesma transação** (`inserirRegistroEAvancarCursor`
+  em `service/db.js`): se o processo cair no meio, ou os dois gravam, ou
+  nenhum grava — nunca um registro "órfão" sem cursor avançado.
+- **Trava de execução em processo** (`service/poller.js`): impede que dois
+  ciclos do mesmo projeto rodem sobrepostos (ex.: um ciclo lento ainda
+  processando quando o próximo tick do agendador dispara). Suficiente para
+  um processo único nesta escala — não é uma trava distribuída.
+- **Reprocessamento de degradados** (`service/reprocessar-degradados.js`):
+  como o serviço pode operar sem `ANTHROPIC_API_KEY` por um tempo
+  (débito de "credenciais adiadas"), registros degradados precisam de um
+  caminho de volta — rebusca o PR via API (dados de PR mergeado não
+  expiram) e roda a categorização de novo, **atualizando** o mesmo
+  registro (nunca criando um segundo).
+- **Credencial sempre injetável** (`service/github-token.js`,
+  `core/github-client.js`): nenhum token, PAT ou token de GitHub App usam
+  exatamente o mesmo código — a troca é uma variável de ambiente, nunca uma
+  bifurcação de lógica. Isso permitiu um smoke test real (sem esperar por
+  App/PAT) contra a API pública não-autenticada do GitHub — ver
+  `docs/validacao-viva.md`.
+- **`origem: "evento" | "backfill"`** (`schema_version: "1.2"`, aditivo):
+  distingue PRs capturados na janela normal do poller de PRs históricos
+  processados no cadastro de um projeto novo — o dashboard (Fase 4) usa
+  isso para não confundir "atividade recente" com "backlog importado".
 
 ## Modo degradado
 
