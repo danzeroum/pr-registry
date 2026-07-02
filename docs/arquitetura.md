@@ -101,8 +101,10 @@ Dashboard (Fase 4) consulta o banco — visões Desenvolvedor/Gestor/Analista de
 | `service/db.js`, `poller.js`, `processar-pr.js`, `reprocessar-degradados.js`, `github-token.js`, `smoke-publico.js` | 3 | Serviço de polling multi-projeto — ver `service/README.md`. |
 | `docs/onboarding.md` | 2 | Passo a passo de instalação no modo Action (RF11). |
 | `docs/validacao-viva.md` | 3 | Checklist de validação com credenciais reais — débito registrado, bloqueante para produção. |
-| `dashboard/` | 4 | API de consulta + site com três visões por persona (Dev/Gestor/Analista de Negócio). |
-| Hooks do Claude Code (opcional) | 4 | Enriquecimento do transcript como artefato de contexto. |
+| `dashboard/` | 4 | Servidor Fastify + SSR: três visões por persona, admin de projetos, OAuth do GitHub. Ver `dashboard/README.md`. |
+| `Dockerfile`, `docker-compose.yml` | 4 | Empacotamento de referência (dashboard + poller sobre o mesmo volume SQLite). |
+| `docs/seguranca-servico.md` | 4 | Modelo de acesso (snippets visíveis a quem entra na org), rotina de backup do SQLite. |
+| Hooks do Claude Code (opcional) | — | Enriquecimento do transcript como artefato de contexto (ainda não priorizado). |
 
 ## Decisões da Fase 2
 
@@ -207,3 +209,41 @@ montados por concatenação em runtime (nunca como literal contíguo no
 código-fonte), pois o push protection do próprio GitHub escaneia o texto
 bruto do diff e bloqueia pushes com padrões de segredo reconhecíveis,
 mesmo em fixtures de teste claramente falsas.
+
+## Decisões da Fase 4
+
+- **Stack: Fastify + SSR sem framework de frontend.** Um único processo
+  Node, zero build step de frontend, mesmo runtime do resto do projeto —
+  para um time pequeno operando isso, isso pesa mais que a sofisticação de
+  uma SPA. `dashboard/views/*.js` são funções puras que retornam strings
+  HTML (mesma filosofia de `core/generate-md.js`), testáveis sem subir um
+  servidor.
+- **Autenticação usa o token do próprio usuário, não o do App.** Membro da
+  organização é verificado via `GET /user/memberships/orgs/{org}` com o
+  access token OAuth do usuário logado — não `GET /orgs/{org}/members/{user}`,
+  que só enxerga filiação pública e bloquearia a maioria dos membros reais
+  (filiação privada é o padrão do GitHub). Resultado cacheado no cookie de
+  sessão assinado, não re-consultado a cada página.
+- **Nunca sobe sem OAuth por padrão.** `dashboard/dev-mode.js` recusa
+  iniciar (`garantirArranqueSeguro`) se `GITHUB_OAUTH_CLIENT_ID/SECRET` e
+  `SESSION_SECRET` não estiverem configurados, a menos que
+  `DASHBOARD_DEV_MODE=true` seja setado explicitamente — e mesmo nesse
+  caso o bind fica restrito a `127.0.0.1` por padrão. O débito de
+  credenciais adiadas (mesmo princípio da Fase 3) nunca vira uma exposição
+  silenciosa.
+- **CSRF nas rotas de escrita da admin.** Cadastro de projeto e toggle de
+  `comentar_pr` são as únicas rotas de escrita do dashboard — protegidas
+  por double-submit cookie (`dashboard/csrf.js`) além da autenticação. As
+  rotas de consulta (`/dev`, `/gestor`, `/negocio`, `/api/registros`,
+  `/export.md`) são só leitura.
+- **Persona Analista de Negócio com garantia mecânica.** A regra "só
+  `descricao_gestor`/`resumo_gestor`, nunca campos técnicos" não fica só em
+  comentário — `dashboard/views/negocio-lint.js` escaneia estaticamente
+  `negocio.js` e `test/dashboard/negocio-lint.test.js` falha o build se
+  alguém reintroduzir `.snippet`, `.camada`, `.tipo`, `.justificativa` etc.
+  ali. A lista de PRs por requisito é detalhe expansível (`<details>`), não
+  a porta de entrada — a porta de entrada é a história/requisito.
+- **`origem: "evento"/"backfill"` e `diff_truncado` viram badges visuais**
+  no dashboard (`dashboard/views/badges.js`), não texto solto — completude
+  do registro é informação de primeira classe, não algo que o usuário
+  precisa inferir.

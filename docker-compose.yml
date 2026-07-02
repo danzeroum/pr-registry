@@ -1,0 +1,46 @@
+# Referência de implantação — um time pequeno operando dois processos
+# (dashboard + poller) sobre o mesmo volume SQLite. Ajuste os secrets via
+# um .env não commitado (ver .env.example) ou o gerenciador de secrets da
+# sua plataforma.
+version: '3.8'
+
+services:
+  dashboard:
+    build: .
+    command: node dashboard/server.js
+    ports:
+      - '3000:3000'
+    environment:
+      DASHBOARD_HOST: 0.0.0.0
+      DASHBOARD_PORT: '3000'
+      DASHBOARD_DB_PATH: /data/pr-registry.sqlite
+      DASHBOARD_BASE_URL: ${DASHBOARD_BASE_URL}
+      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID}
+      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET}
+      SESSION_SECRET: ${SESSION_SECRET}
+      GITHUB_ORG: ${GITHUB_ORG}
+      # DASHBOARD_DEV_MODE=true só para desenvolvimento local — nunca em
+      # produção (ver docs/seguranca-servico.md).
+    volumes:
+      - dados:/data
+    restart: unless-stopped
+
+  poller:
+    build: .
+    command: node service/run-poller.js
+    environment:
+      DASHBOARD_DB_PATH: /data/pr-registry.sqlite
+      POLL_INTERVAL_MS: '600000'
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      PR_REGISTRY_APP_TOKEN: ${PR_REGISTRY_APP_TOKEN}
+      PR_REGISTRY_PAT: ${PR_REGISTRY_PAT}
+    volumes:
+      - dados:/data
+    restart: unless-stopped
+
+volumes:
+  dados:
+    # Volume nomeado do Docker — sobrevive a `docker compose down` (mas não
+    # a `docker compose down -v`). Ver docs/seguranca-servico.md para a
+    # rotina de backup — este volume é a memória institucional dos
+    # projetos cadastrados.

@@ -2,13 +2,16 @@
 
 ## Por que este documento existe
 
-A Fase 3 (serviço de polling multi-projeto) foi implementada e testada
-**inteiramente com IO mockada** (GitHub API, Anthropic API, relógio) porque
-não havia GitHub App nem PAT configurados no momento da implementação. Isso
-é uma decisão explícita, não um esquecimento — mas significa que dois
-riscos reais nunca foram exercitados: permissões insuficientes do token e
-comportamento sob rate limit autenticado. Este documento é o checklist que
-fecha essa lacuna antes de cadastrar qualquer projeto real no serviço.
+As Fases 3 (serviço de polling) e 4 (dashboard) foram implementadas e
+testadas **inteiramente com IO mockada** (GitHub API, Anthropic API,
+OAuth do GitHub, relógio) porque não havia GitHub App, PAT nem OAuth App
+configurados no momento da implementação, e o daemon Docker não está
+disponível neste ambiente de desenvolvimento. Isso é uma decisão
+explícita, não um esquecimento — mas significa que riscos reais nunca
+foram exercitados: permissões insuficientes do token, comportamento sob
+rate limit autenticado, e se a imagem Docker de fato builda e sobe. Este
+documento é o checklist que fecha essa lacuna antes de cadastrar qualquer
+projeto real no serviço.
 
 ## O que a suíte de testes já prova (sem credenciais)
 
@@ -26,6 +29,13 @@ fecha essa lacuna antes de cadastrar qualquer projeto real no serviço.
 - Paginação de `service/smoke-publico.js` testada com `fetch` mockado em 2+
   páginas (`test/service/smoke-publico.test.js`) — prova a lógica, não a
   API real.
+- Dashboard (Fase 4): fluxo OAuth completo (login → callback → sessão →
+  acesso), verificação de membro via `GET /user/memberships/orgs/{org}`
+  (inclusive o caso de filiação privada), CSRF nas rotas de escrita,
+  recusa de subir sem OAuth fora do modo dev — tudo via `fastify.inject()`
+  com `fetch` mockado (`test/dashboard/server.test.js`). A visão de
+  negócio nunca expõe campos técnicos, garantido estaticamente
+  (`test/dashboard/negocio-lint.test.js`).
 
 ## O que só a validação com credenciais prova
 
@@ -38,6 +48,8 @@ fecha essa lacuna antes de cadastrar qualquer projeto real no serviço.
 | 5 | Categorização real via Anthropic | Todo teste usa `categorizarImpl` mockado — nunca validamos a saída real do modelo contra o schema em um caso não-preparado |
 | 6 | Cronometragem merge→registro visível (RNF1: ≤ 3 min, ou ≤ intervalo do poller) | `duracao_ms` é registrado, mas só um ciclo real (rede + LLM) dá o número que importa |
 | 7 | Espelhamento no `pr-registry` e comentário no PR | `action/src/commit.js`/`comment.js` têm cobertura própria (Fase 2), mas nunca foram chamados a partir do poller de verdade |
+| 8 | OAuth App real do GitHub (client id/secret, callback URL) | Testes usam `fetchImpl` mockado ponta a ponta — nunca houve um App registrado de verdade, um redirect real do navegador, nem um `code` de autorização genuíno |
+| 9 | A imagem Docker builda e sobe (`docker build` + `docker compose up`) | O daemon Docker não está disponível neste ambiente (`docker build` falhou por falta do socket) — `Dockerfile`/`docker-compose.yml` foram revisados por leitura e `npm ci --omit=dev` foi validado isoladamente, mas a imagem em si nunca rodou |
 
 ## Registro do que já foi tentado neste ambiente
 
@@ -85,3 +97,17 @@ com rede normal para obter o resultado real.
 - [ ] Cadastrar um projeto com histórico (backfill) e confirmar que
       `origem: "backfill"` aparece nos registros antigos vs. `"evento"` nos
       novos.
+- [ ] Criar um OAuth App do GitHub real (callback = `{DASHBOARD_BASE_URL}/auth/callback`),
+      configurar `GITHUB_OAUTH_CLIENT_ID/SECRET`, `SESSION_SECRET`,
+      `GITHUB_ORG` e confirmar o login real: redirect → autorização no
+      GitHub → callback → sessão → acesso a `/dev`.
+- [ ] Repetir o login com uma conta cuja filiação na organização é
+      **privada** — é o cenário que motivou trocar de
+      `GET /orgs/{org}/members/{user}` para
+      `GET /user/memberships/orgs/{org}` (ver `docs/arquitetura.md`).
+- [ ] `docker build .` e `docker compose up` — confirmar que a imagem
+      builda, o dashboard sobe em `DASHBOARD_HOST=0.0.0.0`, e o poller
+      (`service/run-poller.js`) roda no container separado sobre o mesmo
+      volume.
+- [ ] Testar a rotina de backup do SQLite (`docs/seguranca-servico.md`)
+      com o container rodando, e uma restauração de fato.

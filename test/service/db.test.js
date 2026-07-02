@@ -153,3 +153,93 @@ test('bancos em memória distintos ficam isolados', () => {
   assert.equal(db.listarProjetos(conn1).length, 1);
   assert.equal(db.listarProjetos(conn2).length, 0);
 });
+
+test('atualizarProjeto alterna comentar_pr (usado pela admin do dashboard)', () => {
+  const conn = db.abrirBanco();
+  const id = db.cadastrarProjeto(conn, { org: 'org', repo: 'exemplo-repo', comentarPr: false });
+  assert.equal(db.buscarProjeto(conn, { org: 'org', repo: 'exemplo-repo' }).comentarPr, false);
+
+  const resultado = db.atualizarProjeto(conn, { id, comentarPr: true });
+  assert.equal(resultado.updated, true);
+  assert.equal(db.buscarProjeto(conn, { org: 'org', repo: 'exemplo-repo' }).comentarPr, true);
+});
+
+test('listarRegistrosFiltrados filtra por modo, requisito, camada e período', () => {
+  const conn = db.abrirBanco();
+  const projetoId = db.cadastrarProjeto(conn, { org: 'org', repo: 'exemplo-repo' });
+
+  db.inserirRegistroEAvancarCursor(conn, {
+    projetoId,
+    repo: 'exemplo-repo',
+    prId: 'PR-1',
+    registro: registroFake('PR-1', {
+      modo: 'completo',
+      data_merge: '2026-06-01T00:00:00Z',
+      requisito: { id: 'PROJ-1', fonte: 'titulo_pr', titulo: 'x' },
+      acoes: [{ id: 'act-001', camada: 'backend', tipo: 'criacao', descricao: 'x', descricao_gestor: 'x', justificativa: 'x', arquivos_impactados: ['a.ts'] }]
+    }),
+    novoCursorIso: null
+  });
+  db.inserirRegistroEAvancarCursor(conn, {
+    projetoId,
+    repo: 'exemplo-repo',
+    prId: 'PR-2',
+    registro: registroFake('PR-2', {
+      modo: 'degradado',
+      data_merge: '2026-07-01T00:00:00Z',
+      requisito: { id: 'PROJ-2', fonte: 'titulo_pr', titulo: 'y' }
+    }),
+    novoCursorIso: null
+  });
+
+  assert.equal(db.listarRegistrosFiltrados(conn, { modo: 'completo' }).length, 1);
+  assert.equal(db.listarRegistrosFiltrados(conn, { requisitoId: 'PROJ-2' })[0].pr_id, 'PR-2');
+  assert.equal(db.listarRegistrosFiltrados(conn, { camada: 'backend' })[0].pr_id, 'PR-1');
+  assert.equal(db.listarRegistrosFiltrados(conn, { camada: 'frontend' }).length, 0);
+  assert.equal(db.listarRegistrosFiltrados(conn, { desde: '2026-06-15T00:00:00Z' })[0].pr_id, 'PR-2');
+  assert.equal(db.listarRegistrosFiltrados(conn, { ate: '2026-06-15T00:00:00Z' })[0].pr_id, 'PR-1');
+});
+
+test('agregarPorRequisito agrupa PRs e conta completos/degradados', () => {
+  const conn = db.abrirBanco();
+  const projetoId = db.cadastrarProjeto(conn, { org: 'org', repo: 'exemplo-repo' });
+  const requisito = { id: 'PROJ-1', fonte: 'titulo_pr', titulo: 'Login social' };
+
+  db.inserirRegistroEAvancarCursor(conn, {
+    projetoId,
+    repo: 'exemplo-repo',
+    prId: 'PR-1',
+    registro: registroFake('PR-1', { modo: 'completo', requisito }),
+    novoCursorIso: null
+  });
+  db.inserirRegistroEAvancarCursor(conn, {
+    projetoId,
+    repo: 'exemplo-repo',
+    prId: 'PR-2',
+    registro: registroFake('PR-2', { modo: 'degradado', requisito }),
+    novoCursorIso: null
+  });
+
+  const agregado = db.agregarPorRequisito(conn);
+  assert.equal(agregado.length, 1);
+  assert.equal(agregado[0].requisitoId, 'PROJ-1');
+  assert.equal(agregado[0].titulo, 'Login social');
+  assert.equal(agregado[0].totalPrs, 2);
+  assert.equal(agregado[0].prsCompletos, 1);
+  assert.equal(agregado[0].prsDegradados, 1);
+  assert.equal(agregado[0].naoVinculado, false);
+});
+
+test('agregarPorRequisito marca naoVinculado para PRs sem requisito identificado', () => {
+  const conn = db.abrirBanco();
+  const projetoId = db.cadastrarProjeto(conn, { org: 'org', repo: 'exemplo-repo' });
+  db.inserirRegistroEAvancarCursor(conn, {
+    projetoId,
+    repo: 'exemplo-repo',
+    prId: 'PR-1',
+    registro: registroFake('PR-1'),
+    novoCursorIso: null
+  });
+  const agregado = db.agregarPorRequisito(conn);
+  assert.equal(agregado[0].naoVinculado, true);
+});

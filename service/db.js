@@ -87,6 +87,11 @@ function buscarProjeto(db, { org, repo }) {
   return linhaParaProjeto(linha);
 }
 
+function atualizarProjeto(db, { id, comentarPr }) {
+  const info = db.prepare('UPDATE projetos SET comentar_pr = ? WHERE id = ?').run(comentarPr ? 1 : 0, id);
+  return { updated: info.changes > 0 };
+}
+
 function registroExiste(db, { repo, prId }) {
   const linha = db.prepare('SELECT 1 FROM registros WHERE repo = ? AND pr_id = ?').get(repo, prId);
   return Boolean(linha);
@@ -171,6 +176,58 @@ function listarRegistros(db, { projetoId } = {}) {
   return linhas.map(linhaParaRegistro);
 }
 
+/**
+ * Filtragem feita em JS sobre os registros já carregados, não em SQL —
+ * na escala de referência (20 projetos, dezenas de PRs/dia agregados) o
+ * dataset inteiro cabe em memória sem esforço, e evita depender de
+ * funções JSON1 do SQLite que variam entre builds. Se o volume crescer
+ * o bastante para doer, é aqui — só aqui — que a query muda; nenhum
+ * chamador (dashboard, testes) depende de como a filtragem é feita.
+ */
+function listarRegistrosFiltrados(db, filtros = {}) {
+  const { projetoId, camada, tipo, modo, origem, requisitoId, desde, ate } = filtros;
+  let registros = listarRegistros(db, projetoId ? { projetoId } : undefined);
+
+  if (modo) registros = registros.filter((r) => r.json.modo === modo);
+  if (origem) registros = registros.filter((r) => r.json.origem === origem);
+  if (requisitoId) registros = registros.filter((r) => r.json.requisito?.id === requisitoId);
+  if (desde) registros = registros.filter((r) => r.data_merge && r.data_merge >= desde);
+  if (ate) registros = registros.filter((r) => r.data_merge && r.data_merge <= ate);
+  if (camada) registros = registros.filter((r) => (r.json.acoes || []).some((a) => a.camada === camada));
+  if (tipo) registros = registros.filter((r) => (r.json.acoes || []).some((a) => a.tipo === tipo));
+
+  return registros;
+}
+
+/**
+ * Visão de primeira classe da persona Analista de Negócio (RF8 revisado):
+ * agrega os PRs por requisito, sem expor camada/tipo/snippet — só a
+ * contagem de PRs e o status de completude, que a view de negócio traduz
+ * para linguagem sem jargão.
+ */
+function agregarPorRequisito(db, filtros = {}) {
+  const registros = listarRegistrosFiltrados(db, filtros);
+  const porRequisito = new Map();
+
+  for (const r of registros) {
+    const req = r.json.requisito || { id: 'nao-vinculado', titulo: '' };
+    if (!porRequisito.has(req.id)) {
+      porRequisito.set(req.id, { requisitoId: req.id, titulo: req.titulo, prs: [] });
+    }
+    porRequisito.get(req.id).prs.push(r);
+  }
+
+  return Array.from(porRequisito.values()).map((g) => ({
+    requisitoId: g.requisitoId,
+    titulo: g.titulo,
+    totalPrs: g.prs.length,
+    prsCompletos: g.prs.filter((p) => p.json.modo === 'completo').length,
+    prsDegradados: g.prs.filter((p) => p.json.modo === 'degradado').length,
+    naoVinculado: g.requisitoId === 'nao-vinculado',
+    prs: g.prs
+  }));
+}
+
 function registrarExecucao(db, { projetoId, prsProcessados, erros, duracaoMs }) {
   const stmt = db.prepare(
     `INSERT INTO execucoes_poller (projeto_id, timestamp, prs_processados, erros, duracao_ms)
@@ -195,8 +252,11 @@ module.exports = {
   inserirRegistroEAvancarCursor,
   avancarCursor,
   atualizarRegistro,
+  atualizarProjeto,
   listarRegistrosDegradados,
   listarRegistros,
+  listarRegistrosFiltrados,
+  agregarPorRequisito,
   registrarExecucao,
   listarExecucoes
 };
