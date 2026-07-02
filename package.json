@@ -1,0 +1,17 @@
+{
+  "name": "pr-registry",
+  "version": "1.0.0",
+  "description": "Sistema automatizado de registro e documentação de desenvolvimento (PR Registry)",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "generate-md": "node scripts/generate-md.js",
+    "validate": "node scripts/validate.js",
+    "scrub": "node scripts/scrub.js"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}

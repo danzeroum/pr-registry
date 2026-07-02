@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "pr_id": "PR-103",
+  "repo": "exemplo-repo",
+  "titulo_pr": "Ajusta espaçamento do rodapé em telas pequenas",
+  "requisito": { "id": "nao-vinculado", "fonte": "nao_vinculado", "titulo": "" },
+  "autor_dev": "ana.costa",
+  "gerado_por_ia": false,
+  "data_merge": "2026-06-25T17:45:00Z",
+  "status_pr": "mergeado",
+  "modo": "completo",
+  "acoes": [
+    {
+      "id": "act-001",
+      "camada": "frontend",
+      "tipo": "modificacao",
+      "descricao": "Ajusta o padding do componente Footer em breakpoints abaixo de 480px para evitar sobreposição com o botão flutuante.",
+      "descricao_gestor": "Corrigido um problema visual no rodapé do site em celulares.",
+      "justificativa": "O rodapé estava sobrepondo o botão de contato flutuante em telas pequenas, prejudicando a usabilidade.",
+      "arquivos_impactados": ["src/components/Footer.tsx", "src/components/Footer.module.css"],
+      "snippet": "@media (max-width: 480px) {\n  .footer { padding-bottom: 64px; }\n}",
+      "dependencias": [],
+      "impacto": [],
+      "inferida": true
+    }
+  ],
+  "resumo_geral": "Ajuste de CSS no componente Footer para corrigir sobreposição visual com o botão de contato flutuante em telas com largura menor que 480px.",
+  "resumo_gestor": "Pequeno ajuste visual para melhorar a exibição do site em celulares.",
+  "pendencias": [
+    "PR sem requisito de origem identificado (não há referência a issue/história no título, branch ou descrição)."
+  ],
+  "tags": ["frontend", "css", "responsividade"]
+}
