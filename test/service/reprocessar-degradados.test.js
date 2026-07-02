@@ -58,6 +58,13 @@ test('reprocessa um registro degradado com sucesso e atualiza para modo completo
   assert.equal(registros[0].modo, 'completo');
   assert.equal(registros[0].pr_id, antes.pr_id);
 
+  // caminho de UPDATE explícito (db.atualizarRegistro), nunca o
+  // INSERT OR IGNORE de inserirRegistroEAvancarCursor: mesmo id de linha,
+  // criado_em preservado, atualizado_em avança.
+  assert.equal(registros[0].id, antes.id);
+  assert.equal(registros[0].criado_em, antes.criado_em);
+  assert.ok(new Date(registros[0].atualizado_em).getTime() >= new Date(antes.atualizado_em).getTime());
+
   const { valid, errors } = validateRegistro(registros[0].json);
   assert.equal(valid, true, errors.join('\n'));
 });

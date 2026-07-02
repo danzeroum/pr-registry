@@ -90,6 +90,8 @@ test('atualizarRegistro sobrescreve um registro degradado após reprocessamento'
     novoCursorIso: null
   });
 
+  const [antes] = db.listarRegistros(conn, { projetoId });
+
   const atualizado = registroFake('PR-1', { modo: 'completo' });
   const resultado = db.atualizarRegistro(conn, { repo: 'exemplo-repo', prId: 'PR-1', registro: atualizado });
   assert.equal(resultado.updated, true);
@@ -97,6 +99,15 @@ test('atualizarRegistro sobrescreve um registro degradado após reprocessamento'
   const [linha] = db.listarRegistros(conn, { projetoId });
   assert.equal(linha.modo, 'completo');
   assert.equal(linha.json.modo, 'completo');
+
+  // prova de que é a MESMA linha atualizada (caminho de UPDATE), não uma
+  // segunda linha inserida: id e criado_em preservados, atualizado_em
+  // avança (nunca regride) — é isso que distingue este caminho do
+  // INSERT OR IGNORE usado por inserirRegistroEAvancarCursor.
+  assert.equal(linha.id, antes.id);
+  assert.equal(linha.criado_em, antes.criado_em);
+  assert.ok(new Date(linha.atualizado_em).getTime() >= new Date(antes.atualizado_em).getTime());
+  assert.equal(db.listarRegistros(conn, { projetoId }).length, 1, 'não deve haver uma segunda linha');
 });
 
 test('listarRegistrosDegradados retorna só os pendentes de reprocessamento', () => {
