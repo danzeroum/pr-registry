@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pr-registry/schema/registro.schema.json",
+  "title": "Registro de PR",
+  "description": "Registro estruturado de um desenvolvimento (PR) mergeado, categorizado por camada e tipo.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "pr_id",
+    "repo",
+    "titulo_pr",
+    "requisito",
+    "autor_dev",
+    "gerado_por_ia",
+    "data_merge",
+    "status_pr",
+    "modo",
+    "acoes",
+    "resumo_geral",
+    "resumo_gestor",
+    "pendencias",
+    "tags"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Versão do schema usada para gerar este registro. 1.1 adiciona o campo opcional diff_truncado; 1.2 adiciona o campo opcional origem (Fase 3: serviço de polling multi-projeto). Versões anteriores permanecem válidas.",
+      "enum": ["1.0", "1.1", "1.2"]
+    },
+    "pr_id": {
+      "type": "string",
+      "description": "Identificador do PR, formato PR-<numero>.",
+      "pattern": "^PR-[0-9]+$"
+    },
+    "repo": {
+      "type": "string",
+      "minLength": 1
+    },
+    "titulo_pr": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requisito": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "fonte", "titulo"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID do requisito/issue de origem, ou 'nao-vinculado' quando não identificado.",
+          "minLength": 1
+        },
+        "fonte": {
+          "type": "string",
+          "enum": ["titulo_pr", "branch", "descricao_pr", "nao_vinculado"]
+        },
+        "titulo": {
+          "type": "string"
+        }
+      }
+    },
+    "autor_dev": {
+      "type": "string",
+      "minLength": 1
+    },
+    "gerado_por_ia": {
+      "type": "boolean"
+    },
+    "data_merge": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status_pr": {
+      "type": "string",
+      "enum": ["mergeado"]
+    },
+    "modo": {
+      "type": "string",
+      "enum": ["completo", "degradado"]
+    },
+    "acoes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/acao" }
+    },
+    "resumo_geral": {
+      "type": "string",
+      "minLength": 1
+    },
+    "resumo_gestor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pendencias": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "diff_truncado": {
+      "type": "object",
+      "description": "Presente somente quando o diff enviado ao LLM foi cortado por orçamento de tokens (RNF7). Metadado do pipeline, não uma pendência para humanos.",
+      "additionalProperties": false,
+      "required": ["arquivos_omitidos", "linhas_omitidas"],
+      "properties": {
+        "arquivos_omitidos": { "type": "integer", "minimum": 0 },
+        "linhas_omitidas": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "origem": {
+      "type": "string",
+      "description": "Como este registro foi capturado pelo serviço de polling (Fase 3): 'evento' para um PR recém-mergeado dentro da janela normal do poller, 'backfill' para PRs históricos processados no cadastro de um projeto novo. Ausente em registros gerados pela Action (Fase 2), que não fazem polling.",
+      "enum": ["evento", "backfill"]
+    }
+  },
+  "$defs": {
+    "acao": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "camada",
+        "tipo",
+        "descricao",
+        "descricao_gestor",
+        "justificativa",
+        "arquivos_impactados"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^act-[0-9]+$"
+        },
+        "camada": {
+          "type": "string",
+          "enum": [
+            "backend",
+            "frontend",
+            "banco_de_dados",
+            "api",
+            "infra",
+            "testes",
+            "seguranca",
+            "docs",
+            "outros"
+          ]
+        },
+        "tipo": {
+          "type": "string",
+          "enum": ["criacao", "modificacao", "refatoracao", "correcao", "remocao"]
+        },
+        "descricao": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Descrição técnica, 1-2 frases."
+        },
+        "descricao_gestor": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Descrição em linguagem acessível a não-técnicos."
+        },
+        "justificativa": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Justificativa obrigatória e não-vazia da ação."
+        },
+        "inferida": {
+          "type": "boolean",
+          "description": "true quando a justificativa foi inferida do diff, não extraída do transcript/descrição."
+        },
+        "arquivos_impactados": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "snippet": {
+          "type": "string",
+          "description": "Trecho de código relevante, no máximo 10 linhas (validado à parte)."
+        },
+        "dependencias": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^act-[0-9]+$" }
+        },
+        "impacto": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

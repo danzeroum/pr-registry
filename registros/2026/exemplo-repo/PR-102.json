@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "pr_id": "PR-102",
+  "repo": "exemplo-repo",
+  "titulo_pr": "Corrige cálculo de frete para CEPs do Norte",
+  "requisito": { "id": "PROJ-134", "fonte": "branch", "titulo": "Frete regional" },
+  "autor_dev": "joao.pereira",
+  "gerado_por_ia": false,
+  "data_merge": "2026-06-20T09:12:00Z",
+  "status_pr": "mergeado",
+  "modo": "completo",
+  "acoes": [
+    {
+      "id": "act-001",
+      "camada": "backend",
+      "tipo": "correcao",
+      "descricao": "Corrige calcularFrete para usar TABELA_FRETE_NORTE quando o CEP pertence à região Norte, em vez da tabela padrão.",
+      "descricao_gestor": "Corrigido o valor de frete cobrado de clientes da região Norte, que estava incorreto.",
+      "justificativa": "Clientes da região Norte estavam recebendo frete calculado com a tabela errada, gerando cobranças incorretas.",
+      "arquivos_impactados": ["src/services/frete.ts"],
+      "snippet": "if (regiao === 'norte') {\n  return TABELA_FRETE_NORTE[cep];\n}\nreturn TABELA_FRETE_PADRAO[cep];",
+      "dependencias": [],
+      "impacto": []
+    },
+    {
+      "id": "act-002",
+      "camada": "testes",
+      "tipo": "criacao",
+      "descricao": "Adiciona caso de teste unitário cobrindo CEPs da região Norte no cálculo de frete.",
+      "descricao_gestor": "Criado um teste automático para evitar que esse erro de frete volte a acontecer.",
+      "justificativa": "Não havia teste cobrindo o caso da região Norte, o que permitiu o bug passar despercebido.",
+      "arquivos_impactados": ["test/frete.test.ts"],
+      "dependencias": ["act-001"],
+      "impacto": [],
+      "inferida": true
+    }
+  ],
+  "resumo_geral": "Correção de bug no cálculo de frete: CEPs da região Norte estavam usando a tabela padrão em vez da tabela específica TABELA_FRETE_NORTE. Adicionado teste de regressão.",
+  "resumo_gestor": "Corrigimos um erro que fazia clientes do Norte pagarem um frete incorreto. Também adicionamos uma verificação automática para evitar que esse problema volte a ocorrer.",
+  "pendencias": [],
+  "tags": ["frete", "bugfix", "regiao-norte"]
+}

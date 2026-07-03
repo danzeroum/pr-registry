@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "pr_id": "PR-101",
+  "repo": "exemplo-repo",
+  "titulo_pr": "Implementa login social com Google (PROJ-88)",
+  "requisito": { "id": "PROJ-88", "fonte": "titulo_pr", "titulo": "Login social" },
+  "autor_dev": "claude-code-headless",
+  "gerado_por_ia": true,
+  "data_merge": "2026-06-15T14:30:00Z",
+  "status_pr": "mergeado",
+  "modo": "completo",
+  "acoes": [
+    {
+      "id": "act-001",
+      "camada": "backend",
+      "tipo": "criacao",
+      "descricao": "Criação do endpoint /auth/google para iniciar o fluxo OAuth2 com o Google.",
+      "descricao_gestor": "Agora o sistema aceita login com conta Google.",
+      "justificativa": "Permitir login com conta Google seguindo o padrão OAuth2 (RFC 6749), conforme solicitado no requisito PROJ-88.",
+      "arquivos_impactados": ["src/routes/auth.ts", "src/services/oauth.ts"],
+      "snippet": "router.post('/auth/google', async (req, res) => {\n  const url = oauthService.buildAuthUrl();\n  res.redirect(url);\n});",
+      "dependencias": [],
+      "impacto": ["Requer configuração de credenciais OAuth no ambiente (GOOGLE_CLIENT_ID/SECRET)."]
+    },
+    {
+      "id": "act-002",
+      "camada": "backend",
+      "tipo": "criacao",
+      "descricao": "Criação do serviço OauthService, responsável por trocar o código de autorização por um token e buscar o perfil do usuário no Google.",
+      "descricao_gestor": "Criada a peça interna que conversa com o Google para confirmar quem é o usuário.",
+      "justificativa": "Encapsular a integração com o provedor OAuth2 em um serviço dedicado, reaproveitando o serviço de sessão já existente.",
+      "arquivos_impactados": ["src/services/oauth.ts"],
+      "snippet": "async function exchangeCode(code) {\n  const token = await googleClient.getToken(code);\n  return googleClient.getProfile(token);\n}",
+      "dependencias": ["act-001"],
+      "impacto": []
+    },
+    {
+      "id": "act-003",
+      "camada": "testes",
+      "tipo": "criacao",
+      "descricao": "Adição de testes de integração para o fluxo completo de login via Google, incluindo o caso de token inválido.",
+      "descricao_gestor": "Criados testes automáticos para garantir que o login com Google continue funcionando corretamente.",
+      "justificativa": "Garantir cobertura de teste para um fluxo de autenticação crítico, evitando regressões futuras.",
+      "arquivos_impactados": ["test/auth.google.test.ts"],
+      "dependencias": ["act-001", "act-002"],
+      "impacto": []
+    }
+  ],
+  "resumo_geral": "Este PR adiciona suporte a login social via Google, criando o endpoint de início do fluxo OAuth2, o serviço de troca de código por token/perfil, e testes de integração cobrindo o caminho feliz e o caso de token inválido.",
+  "resumo_gestor": "Os usuários agora conseguem entrar no sistema usando a conta do Google, sem precisar criar senha nova. A funcionalidade foi testada automaticamente antes de ir para produção.",
+  "pendencias": [],
+  "tags": ["auth", "oauth", "google", "login-social"]
+}

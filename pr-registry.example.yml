@@ -1,0 +1,25 @@
+# Copie este arquivo para a raiz do seu repositório como `pr-registry.yml`
+# para customizar a captura (RF11). Todos os campos são opcionais — sem
+# este arquivo, a Action usa os defaults abaixo.
+
+# Nome do projeto (aparece em relatórios futuros do dashboard).
+projeto: "auth-service"
+
+requisito:
+  # Padrões extras (regex, primeiro grupo de captura = o ID) para extrair o
+  # requisito de origem, além dos padrões padrão (#123, PROJ-123, req:<id>).
+  # Testados na ordem: título do PR -> branch -> descrição.
+  padroes:
+    - 'JIRA-(\d+)'
+
+diff:
+  # Orçamento aproximado de linhas de diff enviado ao LLM por PR (RNF7).
+  # Hunks maiores são cortados primeiro; o corte é registrado no campo
+  # diff_truncado do registro, nunca ocultado silenciosamente.
+  max_linhas: 4000
+
+  # Padrões extras (regex sobre o path do arquivo) a excluir da análise,
+  # além dos defaults (lockfiles, dist/, build/, *.min.js, vendor/).
+  excluir:
+    - '.*\.snap$'
+    - '(^|/)coverage/'

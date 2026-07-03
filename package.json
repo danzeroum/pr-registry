@@ -1,0 +1,25 @@
+{
+  "name": "pr-registry",
+  "version": "1.0.0",
+  "description": "Sistema automatizado de registro e documentação de desenvolvimento (PR Registry)",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js test/action/*.test.js test/core/*.test.js test/service/*.test.js test/dashboard/*.test.js",
+    "generate-md": "node scripts/generate-md.js",
+    "validate": "node scripts/validate.js",
+    "scrub": "node scripts/scrub.js",
+    "dashboard": "node dashboard/server.js"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "js-yaml": "^4.1.0",
+    "fastify": "^5.9.0",
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/formbody": "^8.0.2"
+  }
+}
