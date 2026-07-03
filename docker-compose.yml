@@ -9,7 +9,13 @@ services:
     build: .
     command: node dashboard/server.js
     ports:
-      - '3000:3000'
+      # Publicado só em localhost por padrão — mesmo com
+      # DASHBOARD_DEV_MODE=true, o processo precisa fazer bind em 0.0.0.0
+      # *dentro* do container (exigência do Docker), então a proteção de
+      # rede vira esta linha, não o bind interno. Para expor de verdade
+      # (produção, com OAuth configurado), troque para '3000:3000' ou
+      # coloque atrás de um reverse proxy.
+      - '127.0.0.1:3000:3000'
     environment:
       DASHBOARD_HOST: 0.0.0.0
       DASHBOARD_PORT: '3000'
@@ -19,8 +25,10 @@ services:
       GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET}
       SESSION_SECRET: ${SESSION_SECRET}
       GITHUB_ORG: ${GITHUB_ORG}
-      # DASHBOARD_DEV_MODE=true só para desenvolvimento local — nunca em
-      # produção (ver docs/seguranca-servico.md).
+      # true para subir sem OAuth configurado (banner de aviso na UI);
+      # nunca deixe true num ambiente com o publish acima trocado para
+      # exposto. Ver docs/seguranca-servico.md.
+      DASHBOARD_DEV_MODE: ${DASHBOARD_DEV_MODE:-false}
     volumes:
       - dados:/data
     restart: unless-stopped
